@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -12,7 +11,6 @@ using Microsoft.Extensions.CommandLineUtils;
 
 namespace LotteryPredictor
 {
-    class LottoListResults : List<LottoResult> { }
     class Program
     {
         static bool CreateDatabase(string fileDB, out LottoListResults dbl)
@@ -100,6 +98,7 @@ namespace LotteryPredictor
                 if (!dataOption.HasValue())
                 {
                     app.ShowHint();
+                    return 1;
                 }
                 var fileDB = dataOption.Value();
 
@@ -120,6 +119,7 @@ namespace LotteryPredictor
                     START:
                         network.Reset();
                     RETRY:
+                        // train step...
                         var step = 0;
                         do
                         {
@@ -127,6 +127,7 @@ namespace LotteryPredictor
                             Console.WriteLine("Train Error: {0}", train.Error);
                             ++step;
                         } while (train.Error > 0.001 && step < 20);
+                        // validate...
                         var passedCount = 0;
                         for (var i = 0; i < deep; ++i)
                         {
@@ -152,6 +153,7 @@ namespace LotteryPredictor
                                 passed ? "PASS" : "FAIL");
                             Console.ResetColor();
                         }
+                        // predict!
                         var input = new BasicMLData(6 * deep);
                         for (int i = 0, k = 0; i < deep; ++i)
                         {
@@ -165,13 +167,14 @@ namespace LotteryPredictor
                             input.Data[k++] = (double)data.V6;
                         }
                         var perfect = dbl[0];
-                        var predict = new LottoResult(
-                        ((BasicMLData)network.Compute(input)).Data);
+                        var predict = new LottoResult(((BasicMLData)network.Compute(input)).Data);
                         Console.ForegroundColor = ConsoleColor.Yellow;
                         Console.WriteLine("Predict: {0}", predict);
                         Console.ResetColor();
+                        // restart if values out of range (pass test)
                         if (predict.IsOut())
                             goto START;
+                        // retry if evaluation is less than 90% and predicted is invalid!
                         if ((double)passedCount < (deep * (double)9 / (double)10) ||
                           !predict.IsValid())
                             goto RETRY;
@@ -186,6 +189,7 @@ namespace LotteryPredictor
 
                 return 0;
             });
+
             app.Execute(args);
 
         }
